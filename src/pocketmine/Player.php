@@ -421,6 +421,8 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 	protected $joinCompleted = false;
 	protected $platformChatId = "";
 	protected $doDaylightCycle = true;
+	private $lastQuickCraftTransactionGroup = [];
+	protected $additionalSkinData = [];
 
 	public function getLeaveMessage(){
 		return "";
@@ -1804,6 +1806,7 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 					
 				$this->identityPublicKey = $packet->identityPublicKey;
 				$this->platformChatId = $packet->platformChatId;
+				$this->additionalSkinData = $packet->additionalSkinData;				
 				$this->processLogin();
 				//Timings::$timerLoginPacket->stopTiming();
 				break;
@@ -2644,9 +2647,11 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 				break;
 			/** @minProtocol 120 */
 			case 'PLAYER_SKIN_PACKET':
-				if($this->setSkin($packet->newSkinByteData, $packet->newSkinId, $packet->newSkinGeometryName, $packet->newSkinGeometryData, $packet->newCapeByteData, $packet->isPremiumSkin))
+				if ($this->setSkin($packet->newSkinByteData, $packet->newSkinId, $packet->newSkinGeometryName, $packet->newSkinGeometryData, $packet->newCapeByteData, $packet->isPremiumSkin)) {
 					// Send new skin to viewers and to self
+					$this->additionalSkinData = $packet->additionalSkinData;
 					$this->updatePlayerSkin($packet->oldSkinName, $packet->newSkinName);
+				}
 				break;
 
 			/** @minProtocol 120 */
@@ -5017,60 +5022,17 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 	}
 	
 	public function updatePlayerSkin($oldSkinName, $newSkinName) {
-		$pk = new RemoveEntityPacket();
-		$pk->eid = $this->getId();
-
-		$pk2 = new PlayerListPacket();
-		$pk2->type = PlayerListPacket::TYPE_REMOVE;
-		$pk2->entries[] = [$this->getUniqueId()];
-
-		$pk3 = new PlayerListPacket();
-		$pk3->type = PlayerListPacket::TYPE_ADD;
-		$pk3->entries[] = [$this->getUniqueId(), $this->getId(), $this->getName(), $this->skinName, $this->skin, $this->capeData, $this->skinGeometryName, $this->skinGeometryData];
-
-		$pk4 = new AddPlayerPacket();
-		$pk4->uuid = $this->getUniqueId();
-		$pk4->username = $this->getName();
-		$pk4->eid = $this->getId();
-		$pk4->x = $this->x;
-		$pk4->y = $this->y;
-		$pk4->z = $this->z;
-		$pk4->speedX = $this->motionX;
-		$pk4->speedY = $this->motionY;
-		$pk4->speedZ = $this->motionZ;
-		$pk4->yaw = $this->yaw;
-		$pk4->pitch = $this->pitch;
-		$pk4->metadata = $this->dataProperties;
-
-		
-		$pk120 = new PlayerSkinPacket();
-		$pk120->uuid = $this->getUniqueId();
-		$pk120->newSkinId = $this->skinName;
-		$pk120->newSkinName = $newSkinName;
-		$pk120->oldSkinName = $oldSkinName;
-		$pk120->newSkinByteData = $this->skin;
-		$pk120->newCapeByteData = $this->capeData;
-		$pk120->newSkinGeometryName = $this->skinGeometryName;
-		$pk120->newSkinGeometryData = $this->skinGeometryData;
-		
-		$viewers120 = [];
-		$oldViewers = [];
-		$recipients = $this->server->getOnlinePlayers();
-		// $recipients[] = $this; // current player is already in the array
-		foreach ($recipients as $viewer) {
-			if ($viewer->getPlayerProtocol() >= ProtocolInfo::PROTOCOL_120) {
-				$viewers120[] = $viewer;
-			} else {
-				$oldViewers[] = $viewer;
-			}
-		}
-		
-		if (!empty($viewers120)) {
-			$this->server->batchPackets($viewers120, [$pk120]);
-		}		
-		if (!empty($oldViewers)) {
-			$this->server->batchPackets($oldViewers, [$pk, $pk2, $pk3, $pk4]);
-		}
+		$pk = new PlayerSkinPacket();
+		$pk->uuid = $this->getUniqueId();
+		$pk->newSkinId = $this->skinName;
+		$pk->newSkinName = $newSkinName;
+		$pk->oldSkinName = $oldSkinName;
+		$pk->newSkinByteData = $this->skin;
+		$pk->newCapeByteData = $this->capeData;
+		$pk->newSkinGeometryName = $this->skinGeometryName;
+		$pk->newSkinGeometryData = $this->skinGeometryData;
+		$pk->additionalSkinData = $this->additionalSkinData;
+		$this->server->batchPackets($this->server->getOnlinePlayers(), [$pk]);
 	}
 	
 	/**
@@ -5170,7 +5132,6 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 		$isNeedSendXUID = $this->originalProtocol >= ProtocolInfo::PROTOCOL_140;
 		$playersWithProto140 = [];
 		$otherPlayers = [];
-		$players[] = $this;
 		$pk = new PlayerListPacket();
 		$pk->type = PlayerListPacket::TYPE_ADD;
 		foreach ($players as $player) {
@@ -5178,12 +5139,16 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 			if ($isNeedSendXUID) {
 				$entry[] = $player->getXUID();
 			}
+			$entry[9] = $player->getDeviceOS();
+			$entry[10] = $player->additionalSkinData;
 			$pk->entries[] = $entry;
 			// collect player with different packet logic
-			if ($player->getOriginalProtocol() >= ProtocolInfo::PROTOCOL_140) {
-				$playersWithProto140[] = $player;
-			} else {
-				$otherPlayers[] = $player;
+			if ($player !== $this) {
+				if ($player->getOriginalProtocol() >= ProtocolInfo::PROTOCOL_140) {
+					$playersWithProto140[] = $player;
+				} else {
+					$otherPlayers[] = $player;
+				}
 			}
 		}
 		$this->server->batchPackets([$this], [$pk]);
@@ -5191,7 +5156,7 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 		if (count($playersWithProto140) > 0) {
 			$pk = new PlayerListPacket();
 			$pk->type = PlayerListPacket::TYPE_ADD;
-			$pk->entries[] = [$this->getUniqueId(), $this->getId(), $this->getName(), $this->getSkinName(), $this->getSkinData(), $this->getCapeData(), $this->getSkinGeometryName(), $this->getSkinGeometryData(), $this->getXUID()];
+			$pk->entries[] = [$this->getUniqueId(), $this->getId(), $this->getName(), $this->getSkinName(), $this->getSkinData(), $this->getCapeData(), $this->getSkinGeometryName(), $this->getSkinGeometryData(), $this->getXUID(), $this->getDeviceOS(), $this->additionalSkinData];
 			$this->server->batchPackets($playersWithProto140, [$pk]);
 		}
 		if (count($otherPlayers) > 0) {

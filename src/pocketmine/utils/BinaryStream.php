@@ -10,7 +10,7 @@ class BinaryStream {
 	
 	private $offset;
 	private $buffer;
-	
+
 	private function writeErrorLog($depth = 3) {
 		$depth = max($depth, 3);
 		$backtrace = debug_backtrace(2, $depth);
@@ -98,37 +98,61 @@ class BinaryStream {
 		$uniqId = $skinId . $skinGeomtryName . "-" . microtime(true);
 		$this->putString($uniqId); // Full Skin ID		
 	}
-	
-	
-	public function getSerializedSkin(&$skinId, &$skinData, &$skinGeomtryName, &$skinGeomtryData, &$capeData) {
+
+	public function getSerializedSkin($playerProtocol, &$skinId, &$skinData, &$skinGeomtryName, &$skinGeomtryData, &$capeData, &$additionalSkinData) {		
 		$skinId = $this->getString();
-		$geometryData = json_decode($this->getString(), true);
+		$additionalSkinData['SkinResourcePatch'] = $this->getString();
+		$geometryData = json_decode($additionalSkinData['SkinResourcePatch'], true);
 		$skinGeomtryName = isset($geometryData['geometry']['default']) ? $geometryData['geometry']['default'] : '';
-		$this->getLInt();
-		$this->getLInt();
+		
+		$additionalSkinData['SkinImageWidth'] = $this->getLInt();
+		$additionalSkinData['SkinImageHeight'] = $this->getLInt();
 		$skinData = $this->getString();
 		
-		$animationCount = $this->getVarInt();
+		$animationCount = $this->getLInt();
+		$additionalSkinData['AnimatedImageData'] = [];
 		for ($i = 0; $i < $animationCount; $i++) {
-			$this->getLInt();
-			$this->getLInt();
-			$this->getString();
-			$this->getLInt();
-			$this->getLFloat();
+			$additionalSkinData['AnimatedImageData'][] = [
+				'ImageWidth' => $this->getLInt(),
+				'ImageHeight' => $this->getLInt(),
+				'Image' => $this->getString(),
+				'Type' => $this->getLInt(),
+				'Frames' => $this->getLFloat(),
+			];
 		}
 		
-		$this->getByte();
-		$this->getByte();
-		$this->getByte();
-		
-		$this->getLInt();
-		$this->getLInt();
+		$additionalSkinData['CapeImageWidth'] = $this->getLInt();
+		$additionalSkinData['CapeImageHeight'] = $this->getLInt();
 		$capeData = $this->getString();
 		
 		$skinGeomtryData = $this->getString();
-		$this->getString();		
-		$this->getLInt();
-		$this->getString();			
+		if (strpos($skinGeomtryData, 'null') === 0) {
+			$skinGeomtryData = '';
+		}
+		$additionalSkinData['SkinAnimationData'] = $this->getString();
+
+		$additionalSkinData['PremiumSkin'] = $this->getByte();
+		$additionalSkinData['PersonaSkin'] = $this->getByte();
+		$additionalSkinData['CapeOnClassicSkin'] = $this->getByte();
+		
+		$additionalSkinData['CapeId'] = $this->getString();
+		$this->getString(); // Full Skin ID	
+	}
+
+	public function checkSkinData(&$skinData, &$skinGeomtryName, &$skinGeomtryData, &$additionalSkinData) {
+		if (isset($additionalSkinData['PersonaSkin']) && $additionalSkinData['PersonaSkin']) {
+			static $defaultSkins = [];
+			if (empty($defaultSkins)) {
+				$defaultSkins[] = file_get_contents(__DIR__ . "/defaultSkins/Alex.dat");
+				$defaultSkins[] = file_get_contents(__DIR__ . "/defaultSkins/Steve.dat");
+			}
+			$additionalSkinData['skinData'] = $skinData;
+			$additionalSkinData['skinGeomtryName'] = $skinGeomtryName;
+			$additionalSkinData['skinGeomtryData'] = $skinGeomtryData;
+			$skinData = $defaultSkins[array_rand($defaultSkins)];
+			$skinGeomtryData = '';
+			$skinGeomtryName = '';
+		}
 	}
 	public function __get($name) {
 		$this->writeErrorLog();
@@ -413,5 +437,4 @@ class BinaryStream {
 		$this->putVarInt(strlen($v));
 		$this->put($v);
 	}
-	
 }
