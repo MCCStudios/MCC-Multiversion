@@ -48,7 +48,7 @@ class PlayerSkinPacket extends PEPacket {
 				$this->isPremiumSkin = $this->getByte();
 			}
 		} else {
-			$this->getSerializedSkin($playerProtocol, $this->newSkinId, $this->newSkinByteData, $this->newSkinGeometryName, $this->newSkinGeometryData, $this->newCapeByteData, $this->additionalSkinData);
+			$this->getSerializedSkin($playerProtocol, $this->newSkinId, $this->newSkinByteData, $this->newSkinGeometryName, $this->newSkinGeometryData, $this->newCapeByteData);
 			if (isset($this->additionalSkinData['PremiumSkin']) && $this->additionalSkinData['PremiumSkin']) {
 				$this->isPremiumSkin = true;
 			}
@@ -83,7 +83,7 @@ class PlayerSkinPacket extends PEPacket {
 				$this->putByte($this->isPremiumSkin);
 			}
 		} else {
-			$this->putSerializedSkin($playerProtocol, $this->newSkinId, $this->newSkinByteData, $this->newSkinGeometryName, $this->newSkinGeometryData, $this->newCapeByteData, $this->additionalSkinData);
+			$this->getSerializedSkin($playerProtocol, $this->newSkinId, $this->newSkinByteData, $this->newSkinGeometryName, $this->newSkinGeometryData, $this->newCapeByteData);
 			$this->putString($this->newSkinName);
 			$this->putString($this->oldSkinName);
 		}

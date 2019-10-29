@@ -20,42 +20,83 @@ class BinaryStream {
 		}
 		error_log($result);
 	}
-public function putSerializedSkin($skinId, $skinData, $skinGeomtryName, $skinGeomtryData, $capeData) {
+	public function putSerializedSkin($playerProtocol, $skinId, $skinData, $skinGeomtryName, $skinGeomtryData, $capeData, $additionalSkinData) {
+		if (!isset($additionalSkinData['PersonaSkin']) || !$additionalSkinData['PersonaSkin']) {
+			$additionalSkinData = [];
+		}
+		if (isset($additionalSkinData['skinData'])) {
+			$skinData = $additionalSkinData['skinData'];
+		}
+		if (isset($additionalSkinData['skinGeomtryName'])) {
+			$skinGeomtryName = $additionalSkinData['skinGeomtryName'];
+		}
+		if (isset($additionalSkinData['skinGeomtryData'])) {
+			$skinGeomtryData = $additionalSkinData['skinGeomtryData'];
+		}
+		if (empty($skinGeomtryName)) {
+			$skinGeomtryName = "geometry.humanoid.custom";
+		}
 		$this->putString($skinId);
-		$this->putString('{"geometry" : {"default" : "' . $skinGeomtryName . '"}}');
-		$width = 64;
-		$height = strlen($skinData) >> 8;
-		while ($height > $width) {
-			$width <<= 1;
-			$height >>= 1;
+		$this->putString(isset($additionalSkinData['SkinResourcePatch']) ? $additionalSkinData['SkinResourcePatch'] : '{"geometry" : {"default" : "' . $skinGeomtryName . '"}}');
+		if (isset($additionalSkinData['SkinImageHeight']) && isset($additionalSkinData['SkinImageWidth'])) {
+			$width = $additionalSkinData['SkinImageWidth'];
+			$height = $additionalSkinData['SkinImageHeight'];
+		} else {
+			$width = 64;
+			$height = strlen($skinData) >> 8;
+			while ($height > $width) {
+				$width <<= 1;
+				$height >>= 1;
+			}
 		}
 		$this->putLInt($width);
 		$this->putLInt($height);
 		$this->putString($skinData);
-		$this->putVarInt(0); //Animation Count
-		$this->putByte(0); // Is Premium Skin 
-		$this->putByte(0); // Is Persona Skin 
-		$this->putByte(0); // Is Persona Cape on Classic Skin 
+
+		if (isset($additionalSkinData['AnimatedImageData'])) {
+			$this->putLInt(count($additionalSkinData['AnimatedImageData']));
+			foreach ($additionalSkinData['AnimatedImageData'] as $animation) {
+				$this->putLInt($animation['ImageWidth']);
+				$this->putLInt($animation['ImageHeight']);
+				$this->putString($animation['Image']);
+				$this->putLInt($animation['Type']);
+				$this->putLFloat($animation['Frames']);
+			}
+		} else {
+			$this->putLInt(0);
+		}
+			
 		if (empty($capeData)) {
 			$this->putLInt(0);
 			$this->putLInt(0);
 			$this->putString('');
 		} else {
-			$width = 1;
-			$height = strlen($capeData) >> 2;
-			while ($height > $width) {
-				$width <<= 1;
-				$height >>= 1;
+			if (isset($additionalSkinData['CapeImageWidth']) && isset($additionalSkinData['CapeImageHeight'])) {
+				$width = $additionalSkinData['CapeImageWidth'];
+				$height = $additionalSkinData['CapeImageHeight'];
+			} else {
+				$width = 1;
+				$height = strlen($capeData) >> 2;
+				while ($height > $width) {
+					$width <<= 1;
+					$height >>= 1;
+				}
 			}
 			$this->putLInt($width);
 			$this->putLInt($height);
 			$this->putString($capeData);
 		}
+
 		$this->putString($skinGeomtryData); // Skin Geometry Data
-		$this->putString(''); // Serialized Animation Data
-		$this->putLInt(1);
+		$this->putString(isset($additionalSkinData['SkinAnimationData']) ? $additionalSkinData['SkinAnimationData'] : ''); // Serialized Animation Data
+
+		$this->putByte(isset($additionalSkinData['PremiumSkin']) ? $additionalSkinData['PremiumSkin'] : 0); // Is Premium Skin 
+		$this->putByte(isset($additionalSkinData['PersonaSkin']) ? $additionalSkinData['PersonaSkin'] : 0); // Is Persona Skin 
+		$this->putByte(isset($additionalSkinData['CapeOnClassicSkin']) ? $additionalSkinData['CapeOnClassicSkin'] : 0); // Is Persona Cape on Classic Skin 
+		
+		$this->putString(isset($additionalSkinData['CapeId']) ? $additionalSkinData['CapeId'] : '');
 		$uniqId = $skinId . $skinGeomtryName . "-" . microtime(true);
-		$this->putString($uniqId); // Full Skin ID			
+		$this->putString($uniqId); // Full Skin ID		
 	}
 	
 	
@@ -271,7 +312,7 @@ public function putSerializedSkin($skinId, $skinData, $skinGeomtryName, $skinGeo
 
 	public function getSlot($playerProtocol) {
 		$id = $this->getSignedVarInt();
-		if ($id <= 0) {
+		if ($id == 0) {
 			return Item::get(Item::AIR, 0, 0);
 		}
 		

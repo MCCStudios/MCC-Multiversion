@@ -123,7 +123,7 @@ class PlayerListPacket extends PEPacket{
 						$skinGeomtryName = isset($d[6]) ? $d[6] : '';
 						$skinGeomtryData = isset($d[7]) ? $d[7] : '';
 						$capeData = isset($d[5]) ? $d[5] : '';
-						$this->putSerializedSkin($playerProtocol, $d[3], $skinData, $skinGeomtryName, $skinGeomtryData, $capeData, (isset($d[10]) ? $d[10] : []));
+						$this->putSerializedSkin($playerProtocol, $d[3], $skinData, $skinGeomtryName, $skinGeomtryData, $capeData);
 						if ($playerProtocol >= Info::PROTOCOL_385) {
 							$this->putByte(0); // is teacher
 							$this->putByte(0); // is host

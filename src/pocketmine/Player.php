@@ -963,7 +963,16 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 				return;
 			case 'INVENTORY_CONTENT_PACKET':
 				$winId = $packet->inventoryID;
-				$this->inventoryPacketQueue[$winId] = $packet;
+				$this->inventoryPacketQueue[$packet->pname() . $winId] = $packet;
+				return;
+			case 'INVENTORY_SLOT_PACKET':
+				$winId = $packet->containerId;
+				$this->inventoryPacketQueue[$packet->pname() . $winId] = $packet;
+				return;
+			case 'CONTAINER_OPEN_PACKET':
+			case 'CONTAINER_CLOSE_PACKET':
+				$winId = $packet->windowid;
+				$this->inventoryPacketQueue[$packet->pname() . $winId] = $packet;
 				return;
 			case 'SHOW_STORE_OFFER_PACKET':
 				if ($this->protocol < ProtocolInfo::PROTOCOL_120) {
@@ -2672,6 +2681,15 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 				break;
 			case 'MAP_INFO_REQUEST_PACKET':
 				$this->onPlayerRequestMap($packet->mapId);
+				break;
+			case "RESPAWN_PACKET":
+				$pk = new RespawnPacket();
+				$pos = $this->getSpawn();
+				$pk->x = $pos->x;
+				$pk->y = $pos->y +  $this->getEyeHeight();
+				$pk->z = $pos->z;
+				$this->dataPacket($pk);
+				break;
 			default:
 				break;
 		}
