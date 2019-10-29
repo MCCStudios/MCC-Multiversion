@@ -4184,7 +4184,7 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 					return;
 				}
 				
-+				if (isset(self::$foodData[$itemInHand->getId()])) {
+				if (isset(self::$foodData[$itemInHand->getId()])) {
 					if ($this->getFood() >= self::FOOD_LEVEL_MAX) {
 						$this->startAction = -1;
 						return;
