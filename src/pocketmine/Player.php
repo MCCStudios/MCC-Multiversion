@@ -1600,7 +1600,7 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 	protected function sendEntityPackets($packets) {
 		$this->packetQueue = array_merge($this->packetQueue, $packets);
 	}
-+	protected static $foodData = [
+	protected static $foodData = [
 		Item::APPLE => ['food' => 4, 'saturation' => 2.4],
 		Item::BAKED_POTATO => ['food' => 5, 'saturation' => 6],
 		Item::BEETROOT => ['food' => 1, 'saturation' => 1.2],
